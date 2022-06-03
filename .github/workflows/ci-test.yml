@@ -1,0 +1,89 @@
+name: Test USB
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    name: Build ${{ matrix.RELEASE }}-${{ matrix.BRANCH }}-${{ matrix.TYPE == 'desktop' && matrix.DESKTOP_ENVIRONMENT || matrix.TYPE }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        BRANCH:
+          - edge
+          - current
+          - legacy
+        RELEASE:
+          - focal # Ubuntu 20.04 LTS
+          - jammy # Ubuntu 22.04 LTS
+          - bullseye # Debian 11
+        TYPE:
+          # - minimal
+          - cli
+          - desktop
+        exclude:
+          - BRANCH: current
+            TYPE: desktop
+          - BRANCH: legacy
+            TYPE: desktop
+        include:
+          - TYPE: desktop
+            DESKTOP_ENVIRONMENT: xfce
+            DESKTOP_ENVIRONMENT_CONFIG_NAME: config_base
+            DESKTOP_APPGROUPS_SELECTED: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libmpc-dev
+
+      - name: Build
+        run: |
+          sudo ./compile.sh \
+            BOARD=onecloud \
+            BRANCH=${{ matrix.BRANCH }} \
+            RELEASE=${{ matrix.RELEASE }} \
+            KERNEL_CONFIGURE=no \
+            KERNEL_ONLY=no \
+            BUILD_MINIMAL=${{ matrix.TYPE == 'minimal' && 'yes' || 'no' }} \
+            BUILD_DESKTOP=${{ matrix.TYPE == 'desktop' && 'yes' || 'no' }} \
+            DESKTOP_ENVIRONMENT=${{ matrix.DESKTOP_ENVIRONMENT }} \
+            DESKTOP_ENVIRONMENT_CONFIG_NAME=${{ matrix.DESKTOP_ENVIRONMENT_CONFIG_NAME }} \
+            DESKTOP_APPGROUPS_SELECTED=${{ matrix.DESKTOP_APPGROUPS_SELECTED }} \
+            EXPERT=yes \
+            USE_CCACHE=no \
+            COMPRESS_OUTPUTIMAGE=gz,sha,gpg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.RELEASE }}-${{ matrix.BRANCH }}-${{ matrix.TYPE == 'desktop' && matrix.DESKTOP_ENVIRONMENT || matrix.TYPE }}
+          path: output/images/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: artifacts/
+
+      - name: Release
+        run: |
+          time="${{ github.event.head_commit.timestamp }}"
+          sha="${GITHUB_SHA:0:8}"
+          tag="test-usb-ci-$(date +'%Y%m%d-%H%M' -d "$time")"
+          message="Test-USB CI $(date +'%Y-%m-%d %H:%M' -d "$time")"
+          hub release create --prerelease $(for a in artifacts/*/*; do echo -a $a; done) -t "$GITHUB_SHA" "$tag" -m "$message"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
