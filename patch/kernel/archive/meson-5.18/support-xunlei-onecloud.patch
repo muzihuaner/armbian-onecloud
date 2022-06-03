@@ -2,8 +2,8 @@ Support Xunlei OneCloud
 
 ---
  arch/arm/boot/dts/Makefile             |   1 +
- arch/arm/boot/dts/meson8b-onecloud.dts | 424 +++++++++++++++++++++++++
- 2 files changed, 425 insertions(+)
+ arch/arm/boot/dts/meson8b-onecloud.dts | 423 +++++++++++++++++++++++++
+ 2 files changed, 424 insertions(+)
  create mode 100644 arch/arm/boot/dts/meson8b-onecloud.dts
 
 diff --git a/arch/arm/boot/dts/Makefile b/arch/arm/boot/dts/Makefile
@@ -20,10 +20,10 @@ index e802f817e3a..51206ea5d3e 100644
  	meson8m2-m8s.dtb \
 diff --git a/arch/arm/boot/dts/meson8b-onecloud.dts b/arch/arm/boot/dts/meson8b-onecloud.dts
 new file mode 100644
-index 00000000000..69fff33c496
+index 00000000000..5cbd7a70313
 --- /dev/null
 +++ b/arch/arm/boot/dts/meson8b-onecloud.dts
-@@ -0,0 +1,424 @@
+@@ -0,0 +1,423 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * Author: hzyitc
@@ -431,7 +431,6 @@ index 00000000000..69fff33c496
 +};
 +
 +&usb0 {
-+	dr_mode = "otg";
 +	status = "okay";
 +};
 +
