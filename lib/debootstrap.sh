@@ -409,6 +409,57 @@ create_rootfs_cache()
 	mount_chroot "$SDCARD"
 } #############################################################################
 
+# format_filesystem <device> <fs-type> <label>
+#
+format_filesystem()
+{
+	local device=$1
+	local fstype=$2
+	local label=$3
+
+	case $fstype in
+		ext4)
+			# metadata_csum and 64bit may need to be disabled explicitly when migrating to newer supported host OS releases
+			# add -N number of inodes to keep mount from running out
+			# create bigger number for desktop builds
+			if [[ $HOSTRELEASE =~ buster|bullseye|focal|jammy|sid ]]; then
+				if [[ $BUILD_DESKTOP == yes ]]; then
+					local node_number=4096
+				else
+					local node_number=1024
+				fi
+				mkfs.ext4 -q -m 2 -O ^64bit,^metadata_csum -N $((128*${node_number})) -L "$label" "$device"
+			else
+				mkfs.ext4 -L "$label" "$device"
+			fi
+			;;
+
+		ext2)
+			mkfs.ext2 -q -L "$label" "$device"
+			;;
+
+		fat,fat16,fat32)
+			local fat_size=${fstype#fat}
+			# mkfs.vfat will fail if label is longer than 11 characters
+			mkfs.vfat ${fstype:+-F $fat_size} -n "${label:0:11}" "$device"
+			;;
+
+		f2fs)
+			mkfs.f2fs -l "$label" "$device"
+			;;
+
+		btrfs)
+			mkfs.btrfs -m dup -L "$label" "$device"
+			;;
+
+		xfs)
+			mkfs.xfs -L "$label" "$device"
+			;;
+
+	esac
+
+} #############################################################################
+
 # prepare_partitions
 #
 # creates image file, partitions and fs
@@ -428,45 +479,27 @@ prepare_partitions()
 
 	# array copying in old bash versions is tricky, so having filesystems as arrays
 	# with attributes as keys is not a good idea
-	declare -A parttype mkopts mkopts_label mkfs mountopts
+	declare -A parttype mkfs mountopts
 
 	parttype[ext4]=ext4
 	parttype[ext2]=ext2
 	parttype[fat]=fat16
+	parttype[fat16]=fat16
+	parttype[fat32]=fat32
 	parttype[f2fs]=ext4 # not a copy-paste error
 	parttype[btrfs]=btrfs
 	parttype[xfs]=xfs
 	# parttype[nfs] is empty
 
-	# metadata_csum and 64bit may need to be disabled explicitly when migrating to newer supported host OS releases
-	# add -N number of inodes to keep mount from running out
-	# create bigger number for desktop builds
-	if [[ $BUILD_DESKTOP == yes ]]; then local node_number=4096; else local node_number=1024; fi
-	if [[ $HOSTRELEASE =~ buster|bullseye|focal|jammy|sid ]]; then
-		mkopts[ext4]="-q -m 2 -O ^64bit,^metadata_csum -N $((128*${node_number}))"
-	fi
-	# mkopts[fat] is empty
-	mkopts[ext2]='-q'
-	# mkopts[f2fs] is empty
-	mkopts[btrfs]='-m dup'
-	# mkopts[xfs] is empty
-	# mkopts[nfs] is empty
-
-	mkopts_label[ext4]='-L '
-	mkopts_label[ext2]='-L '
-	mkopts_label[fat]='-n '
-	mkopts_label[f2fs]='-l '
-	mkopts_label[btrfs]='-L '
-	mkopts_label[xfs]='-L '
-	# mkopts_label[nfs] is empty
-
-	mkfs[ext4]=ext4
-	mkfs[ext2]=ext2
-	mkfs[fat]=vfat
-	mkfs[f2fs]=f2fs
-	mkfs[btrfs]=btrfs
-	mkfs[xfs]=xfs
-	# mkfs[nfs] is empty
+	fstab[ext4]=ext4
+	fstab[ext2]=ext2
+	fstab[fat]=vfat
+	fstab[fat16]=vfat
+	fstab[fat32]=vfat
+	fstab[f2fs]=f2fs
+	fstab[btrfs]=btrfs
+	fstab[xfs]=xfs
+	# fstab[nfs] is empty
 
 	mountopts[ext4]=',commit=600,errors=remount-ro'
 	# mountopts[ext2] is empty
@@ -485,11 +518,6 @@ prepare_partitions()
 	UEFI_FS_LABEL="${UEFI_FS_LABEL:-armbiefi}"
 	ROOT_FS_LABEL="${ROOT_FS_LABEL:-armbian_root}"
 	BOOT_FS_LABEL="${BOOT_FS_LABEL:-armbianboot}"
-
-	call_extension_method "pre_prepare_partitions" "prepare_partitions_custom" <<'PRE_PREPARE_PARTITIONS'
-*allow custom options for mkfs*
-Good time to change stuff like mkfs opts, types etc.
-PRE_PREPARE_PARTITIONS
 
 	# stage: determine partition configuration
 	if [[ -n $BOOTFS_TYPE ]]; then
@@ -669,7 +697,7 @@ PREPARE_IMAGE_SIZE
 
 		check_loop_device "$rootdevice"
 		display_alert "Creating rootfs" "$ROOTFS_TYPE on $rootdevice"
-		mkfs.${mkfs[$ROOTFS_TYPE]} ${mkopts[$ROOTFS_TYPE]} ${mkopts_label[$ROOTFS_TYPE]:+${mkopts_label[$ROOTFS_TYPE]}"$ROOT_FS_LABEL"} $rootdevice >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
+		format_filesystem "$rootdevice" "$ROOTFS_TYPE" "$ROOT_FS_LABEL" >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
 		[[ $ROOTFS_TYPE == ext4 ]] && tune2fs -o journal_data_writeback $rootdevice > /dev/null
 		if [[ $ROOTFS_TYPE == btrfs && $BTRFS_COMPRESSION != none ]]; then
 			local fscreateopt="-o compress-force=${BTRFS_COMPRESSION}"
@@ -683,20 +711,20 @@ PREPARE_IMAGE_SIZE
 		else
 			local rootfs="UUID=$(blkid -s UUID -o value $rootdevice)"
 		fi
-		echo "$rootfs / ${mkfs[$ROOTFS_TYPE]} defaults,noatime${mountopts[$ROOTFS_TYPE]} 0 1" >> $SDCARD/etc/fstab
+		echo "$rootfs / ${fstab[$ROOTFS_TYPE]} defaults,noatime${mountopts[$ROOTFS_TYPE]} 0 1" >> $SDCARD/etc/fstab
 	fi
 	if [[ -n $bootpart ]]; then
 		display_alert "Creating /boot" "$bootfs on ${LOOP}p${bootpart}"
 		check_loop_device "${LOOP}p${bootpart}"
-		mkfs.${mkfs[$bootfs]} ${mkopts[$bootfs]} ${mkopts_label[$bootfs]:+${mkopts_label[$bootfs]}"$BOOT_FS_LABEL"} ${LOOP}p${bootpart} >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
+		format_filesystem "${LOOP}p${bootpart}" "$bootfs" "$BOOT_FS_LABEL" >> "${DEST}"/${LOG_SUBPATH}/install.log 2>&1
 		mkdir -p $MOUNT/boot/
 		mount ${LOOP}p${bootpart} $MOUNT/boot/
-		echo "UUID=$(blkid -s UUID -o value ${LOOP}p${bootpart}) /boot ${mkfs[$bootfs]} defaults${mountopts[$bootfs]} 0 2" >> $SDCARD/etc/fstab
+		echo "UUID=$(blkid -s UUID -o value ${LOOP}p${bootpart}) /boot ${fstab[$bootfs]} defaults${mountopts[$bootfs]} 0 2" >> $SDCARD/etc/fstab
 	fi
 	if [[ -n $uefipart ]]; then
 		display_alert "Creating EFI partition" "FAT32 ${UEFI_MOUNT_POINT} on ${LOOP}p${uefipart} label ${UEFI_FS_LABEL}"
 		check_loop_device "${LOOP}p${uefipart}"
-		mkfs.fat -F32 -n "${UEFI_FS_LABEL}" ${LOOP}p${uefipart} >>"${DEST}"/debug/install.log 2>&1
+		format_filesystem "${LOOP}p${uefipart}" "fat32" "${UEFI_FS_LABEL}" >>"${DEST}"/debug/install.log 2>&1
 		mkdir -p "${MOUNT}${UEFI_MOUNT_POINT}"
 		mount ${LOOP}p${uefipart} "${MOUNT}${UEFI_MOUNT_POINT}"
 		echo "UUID=$(blkid -s UUID -o value ${LOOP}p${uefipart}) ${UEFI_MOUNT_POINT} vfat defaults 0 2" >>$SDCARD/etc/fstab
