@@ -13,7 +13,7 @@ https://github.com/hzyitc/armbian-onecloud
 (特别注意：USB Burning Tool 请使用2.1.6.8版本，其他版本可能出现超时等报错）
 
 
-刷机包下载地址：https://github.com/muzihuaner/armbian-onecloud/releases 注意后缀带Burn的才是直刷包，其他都是USB启动包。
+刷机包下载地址：https://github.com/hzyitc/armbian-onecloud/releases 注意后缀带Burn的才是直刷包，其他都是USB启动包。
 
 如果Github下载较慢，以下是镜像下载链接（包括刷机软件）：
 
