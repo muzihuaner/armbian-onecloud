@@ -18,7 +18,8 @@ https://github.com/hzyitc/armbian-onecloud
 如果Github下载较慢，以下是镜像下载链接（包括刷机软件）：
 
 线刷工具USB Burning Tool  
-https://ghproxy.com/https://github.com/MDCY9008/armbian-onecloud/releases/download/tools/Amlogic.USB.Burning.Tool.v2.1.6.8.exe  
+https://ghproxy.com/https://github.com/muzihuaner/armbian-onecloud/releases/download/tools/Amlogic.USB.Burning.Tool.v2.1.6.8.exe
 Ubuntu22.04(jammy)      
 
 Debian11(bullseye)
+
