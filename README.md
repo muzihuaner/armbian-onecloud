@@ -1,7 +1,7 @@
 # armbian-onecloud
 [![build](https://img.shields.io/github/actions/workflow/status/hzyitc/armbian-onecloud/ci.yml)](https://github.com/hzyitc/armbian-onecloud/actions/workflows/ci.yml) [![downloads](https://img.shields.io/github/downloads/hzyitc/armbian-onecloud/total)](https://github.com/hzyitc/armbian-onecloud/releases) [![downloads@latest](https://img.shields.io/github/downloads/hzyitc/armbian-onecloud/latest/total)](https://github.com/hzyitc/armbian-onecloud/releases/latest)
 
-[README](README.md) | [中文文档](README_zh.md)
+[README](README.md) | [中文文档](README_zh.md) | [安装文档](INSTALL.md)
 
 **All changes were push to [the official repository](https://github.com/armbian/build).**
 
