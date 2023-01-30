@@ -83,7 +83,7 @@ jobs:
         BRANCH:
           - edge
           - current
-          - legacy
+#           - legacy
 
     steps:
       - name: Import env
@@ -124,7 +124,7 @@ jobs:
         BRANCH:
           - edge
           - current
-          - legacy
+#           - legacy
         RELEASE:
           # - focal # Ubuntu 20.04 LTS
           - jammy # Ubuntu 22.04 LTS
